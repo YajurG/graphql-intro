@@ -1,14 +1,6 @@
-const {ApolloServer, gql} = require('apollo-server');
+const {ApolloServer, gql, PubSub} = require('apollo-server');
 
 const typeDefs = gql `
- type Query {
-     hello: String!
-     user: User
- }
-
- type Mutation {
-     register(userInfo: UserInfo!): RegisterResponse
- }
 
  type RegisterResponse {
      user: User
@@ -27,23 +19,63 @@ const typeDefs = gql `
 
  type User {
      id: ID!
-     name: String!
+     username: String!
+     firstLetterUsername: String
+     usernameID: String
+ }
+
+ type Query {
+     hello(name: String): String!
+     user: User
+ }
+
+ type Mutation {
+     register(userInfo: UserInfo!): RegisterResponse
+     login(userInfo: UserInfo!): String!
+ }
+
+ type Subscription {
+     newUser: User!
  }
 `;
 
+const NEW_USER = "new user";
+
 const resolvers = {
+    Subscription: {
+        newUser: {
+            subscribe: (_, __, {pubsub}) => pubsub.asyncIterator(NEW_USER)
+        }
+    },
+    User: {
+        firstLetterUsername: (parent) => {
+            return parent.username[0]
+        },
+        usernameID: (parent) => {
+            return parent.username + parent.id
+        },
+        username: (parent) => {
+            return parent.username
+        }
+    },
     Query: {
-        hello: () => "Shut up bitch!",
+        hello: (parent, {name}) => {
+            return `hey ${name}`
+        },
         user: () => ({
             id: 1,
-            name: "Ben"
+            username: "Ben"
         })
     },
     Mutation: {
+        login: (parent, {userInfo: {username}}, context, info) => {
+            console.log(context)
+            return username
+        },
         register: () => ({
             user: {
                 id: 1,
-                name: "John"
+                username: "John"
             },
             errors: [
                 {
@@ -55,6 +87,8 @@ const resolvers = {
     }
 }
 
-const server = new ApolloServer({typeDefs, resolvers});
+const pubsub = new PubSub(); 
+
+const server = new ApolloServer({typeDefs, resolvers, context: ({req, res}) => ({req, res})});
 
 server.listen().then(({url}) => console.log(`Server started at ${url}`));
